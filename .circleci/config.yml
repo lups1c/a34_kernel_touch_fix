@@ -6,39 +6,47 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Install System Dependencies"
+          name: "Full Kernel Build"
           command: |
+            # 1. Install Dependencies
             sudo apt-get update
             sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm zip python3
-      - run:
-          name: "Download Proton Clang"
-          command: |
+            
+            # 2. Download Proton Clang (Modern & Public)
             cd ..
             git clone --depth=1 https://github.com/kdrag0n/proton-clang clang-stable
-      - run:
-          name: "Compile Kernel"
-          command: |
-            cd kernel-6.6
-            export PARENT_DIR=$(readlink -f ..)
+            export CLANG_PATH=$(readlink -f clang-stable)
+            
+            # 3. Compile
+            cd project/kernel-6.6
+            mkdir -p out
+            
+            # FORCE the PATH so it finds Proton Clang (Version 13+) first
+            export PATH=$CLANG_PATH/bin:$PATH
+            
+            # Set Variables for Kernel 6.6
             export ARCH=arm64
             export SUBARCH=arm64
-            
-            # Setup Paths
-            export CLANG_DIR=$PARENT_DIR/clang-stable
-            export PATH=$CLANG_DIR/bin:$PATH
-            
-            # Proton Clang integrated variables
-            export CROSS_COMPILE=aarch64-linux-gnu-
-            export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            export CC=clang
+            export NM=llvm-nm
+            export OBJCOPY=llvm-objcopy
+            export OBJDUMP=llvm-objdump
+            export STRIP=llvm-strip
+            export AR=llvm-ar
+            export LD=ld.lld
             export LLVM=1
             export LLVM_IAS=1
+            export CROSS_COMPILE=aarch64-linux-gnu-
+            export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+            # Verify version (This should show 13.0.0 or higher in your logs)
+            clang --version
             
-            mkdir -p out
             make O=out ARCH=arm64 afaneh_a34x_defconfig
-            make O=out ARCH=arm64 -j$(nproc) CC=clang
-      - run:
-          name: "Package AnyKernel3"
-          command: |
+            make O=out ARCH=arm64 -j$(nproc)
+            
+            # 4. Package
+            cd ..
             git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
             cp kernel-6.6/out/arch/arm64/boot/Image.gz AnyKernel3/ || cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/
             cd AnyKernel3
@@ -48,7 +56,6 @@ jobs:
           destination: builds
 
 workflows:
-  version: 2
-  build_and_package:
+  build_kernel:
     jobs:
       - build
