@@ -1,47 +1,31 @@
-version: 2.1
-
-# This 'jobs' key must be at the very edge of the left margin (no spaces)
-jobs:
-  build:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - run:
-          name: "Install System Dependencies"
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm zip python3
-      - run:
-          name: "Download Toolchains"
+- run:
+          name: "Download Modern Toolchain"
           command: |
             cd ..
-            git clone --depth=1 https://github.com/afaneh-toolchain/prebuilts_clang_host_linux-x86_clang-r383902 clang-r383902
+            # We are getting a newer Clang (r416183b or similar) that supports Kernel 6.6
+            git clone --depth=1 https://gitlab.com/tony_ark/prebuilts_clang_host_linux-x86_clang-r416183b clang-stable
             git clone --depth=1 --branch android-9.0.0_r59 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 aarch64-linux-android-4.9
       - run:
           name: "Compile Kernel"
           command: |
-            # Enter the source folder
             cd kernel-6.6
-            
             export PARENT_DIR=$(readlink -f ..)
             export ARCH=arm64
             export SUBARCH=arm64
-            export CROSS_COMPILE=$PARENT_DIR/aarch64-linux-android-4.9/bin/aarch64-linux-android-
-            export CLANG_TRIPLE=$PARENT_DIR/clang-r383902/bin/aarch64-linux-gnu-
-            export PATH=$PATH:$PARENT_DIR/aarch64-linux-android-4.9/bin:$PARENT_DIR/clang-r383902/bin
+            
+            # Update these paths to match the 'clang-stable' folder we just made
+            export CLANG_DIR=$PARENT_DIR/clang-stable
+            export GCC_DIR=$PARENT_DIR/aarch64-linux-android-4.9
+            
+            export CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-
+            export CLANG_TRIPLE=aarch64-linux-gnu-
+            
+            # IMPORTANT: Put the new Clang at the FRONT of the PATH so it overrides the old system Clang
+            export PATH=$CLANG_DIR/bin:$GCC_DIR/bin:$PATH
+            
             export LLVM=1
+            export LLVM_IAS=1
             
             mkdir -p out
             make O=out ARCH=arm64 afaneh_a34x_defconfig
             make O=out ARCH=arm64 -j$(nproc)
-      - run:
-          name: "Package AnyKernel3"
-          command: |
-            git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
-            cp kernel-6.6/out/arch/arm64/boot/Image.gz AnyKernel3/ || cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/
-            cd AnyKernel3
-            zip -r9 ../A34-TouchFix-$(date +%Y%m%d).zip *
-      - store_artifacts:
-          path: A34-TouchFix-*.zip
-          destination: builds
