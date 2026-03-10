@@ -1,26 +1,7 @@
-version: 2.1
-jobs:
-  build:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - run:
-          name: "Install System Dependencies"
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm zip python3
-      - run:
-          name: "Download Toolchains"
-          command: |
-            cd ..
-            # Downloads the specific Clang and GCC version your build_menu expects
-            git clone --depth=1 https://github.com/afaneh-toolchain/prebuilts_clang_host_linux-x86_clang-r383902 clang-r383902
-            git clone --depth=1 --branch android-9.0.0_r59 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 aarch64-linux-android-4.9
-      - run:
+- run:
           name: "Compile Kernel"
           command: |
-            # Set up the paths exactly like your build_menu does
+            cd kernel-6.6
             export PARENT_DIR=$(readlink -f ..)
             export ARCH=arm64
             export SUBARCH=arm64
@@ -29,18 +10,6 @@ jobs:
             export PATH=$PATH:$PARENT_DIR/aarch64-linux-android-4.9/bin:$PARENT_DIR/clang-r383902/bin
             export LLVM=1
             
-            # Use the renamed config
-            make O=out afaneh_a34x_defconfig
-            make O=out -j$(nproc)
-      - run:
-          name: "Package AnyKernel3"
-          command: |
-            git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
-            # A34 often uses Image.gz or just Image. Check your 'out' folder if this fails.
-            cp out/arch/arm64/boot/Image.gz AnyKernel3/ || cp out/arch/arm64/boot/Image AnyKernel3/
-            cd AnyKernel3
-            # Simple zip creation
-            zip -r9 ../A34-TouchFix-$(date +%Y%m%d).zip *
-      - store_artifacts:
-          path: A34-TouchFix-*.zip
-          destination: builds
+            # Explicitly tell make where to look and what architecture to use
+            make O=out ARCH=arm64 afaneh_a34x_defconfig
+            make O=out ARCH=arm64 -j$(nproc)
