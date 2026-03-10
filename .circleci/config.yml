@@ -11,12 +11,10 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm zip python3
       - run:
-          name: "Download Optimized Toolchain"
+          name: "Download Proton Clang"
           command: |
             cd ..
-            # Download only the specific Clang version needed for 6.6 (r450784d)
-            git clone --depth=1 https://github.com/nclib-prebuilts/clang-r450784d clang-stable
-            git clone --depth=1 --branch android-9.0.0_r59 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 aarch64-linux-android-4.9
+            git clone --depth=1 https://github.com/kdrag0n/proton-clang clang-stable
       - run:
           name: "Compile Kernel"
           command: |
@@ -25,20 +23,19 @@ jobs:
             export ARCH=arm64
             export SUBARCH=arm64
             
+            # Setup Paths
             export CLANG_DIR=$PARENT_DIR/clang-stable
-            export GCC_DIR=$PARENT_DIR/aarch64-linux-android-4.9
+            export PATH=$CLANG_DIR/bin:$PATH
             
-            export CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-
-            export CLANG_TRIPLE=aarch64-linux-gnu-
-            
-            export PATH=$CLANG_DIR/bin:$GCC_DIR/bin:$PATH
-            
+            # Proton Clang integrated variables
+            export CROSS_COMPILE=aarch64-linux-gnu-
+            export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             export LLVM=1
             export LLVM_IAS=1
             
             mkdir -p out
             make O=out ARCH=arm64 afaneh_a34x_defconfig
-            make O=out ARCH=arm64 -j$(nproc)
+            make O=out ARCH=arm64 -j$(nproc) CC=clang
       - run:
           name: "Package AnyKernel3"
           command: |
@@ -49,3 +46,9 @@ jobs:
       - store_artifacts:
           path: A34-TouchFix-*.zip
           destination: builds
+
+workflows:
+  version: 2
+  build_and_package:
+    jobs:
+      - build
