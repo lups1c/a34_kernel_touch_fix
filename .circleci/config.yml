@@ -1,9 +1,21 @@
-- run:
-          name: "Download Public Android Toolchain"
+version: 2.1
+jobs:
+  build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: "Install System Dependencies"
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm zip python3
+      - run:
+          name: "Download Optimized Toolchain"
           command: |
             cd ..
-            # Downloading official Google Clang (r450784d) - Public and works for 6.6
-            git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-stable
+            # Download only the specific Clang version needed for 6.6 (r450784d)
+            git clone --depth=1 https://github.com/nclib-prebuilts/clang-r450784d clang-stable
             git clone --depth=1 --branch android-9.0.0_r59 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 aarch64-linux-android-4.9
       - run:
           name: "Compile Kernel"
@@ -13,14 +25,12 @@
             export ARCH=arm64
             export SUBARCH=arm64
             
-            # Google's repo has many versions; we pick the modern one inside the folder
-            export CLANG_DIR=$PARENT_DIR/clang-stable/clang-r450784d
+            export CLANG_DIR=$PARENT_DIR/clang-stable
             export GCC_DIR=$PARENT_DIR/aarch64-linux-android-4.9
             
             export CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-
             export CLANG_TRIPLE=aarch64-linux-gnu-
             
-            # Set the Path
             export PATH=$CLANG_DIR/bin:$GCC_DIR/bin:$PATH
             
             export LLVM=1
@@ -29,3 +39,13 @@
             mkdir -p out
             make O=out ARCH=arm64 afaneh_a34x_defconfig
             make O=out ARCH=arm64 -j$(nproc)
+      - run:
+          name: "Package AnyKernel3"
+          command: |
+            git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
+            cp kernel-6.6/out/arch/arm64/boot/Image.gz AnyKernel3/ || cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/
+            cd AnyKernel3
+            zip -r9 ../A34-TouchFix-$(date +%Y%m%d).zip *
+      - store_artifacts:
+          path: A34-TouchFix-*.zip
+          destination: builds
