@@ -1,4 +1,17 @@
-- run:
+steps:
+      - checkout
+      - run:
+          name: "Install System Dependencies"
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm zip python3
+      - run:
+          name: "Download Toolchains"
+          command: |
+            cd ..
+            git clone --depth=1 https://github.com/afaneh-toolchain/prebuilts_clang_host_linux-x86_clang-r383902 clang-r383902
+            git clone --depth=1 --branch android-9.0.0_r59 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 aarch64-linux-android-4.9
+      - run:
           name: "Compile Kernel"
           command: |
             cd kernel-6.6
@@ -10,6 +23,19 @@
             export PATH=$PATH:$PARENT_DIR/aarch64-linux-android-4.9/bin:$PARENT_DIR/clang-r383902/bin
             export LLVM=1
             
-            # Explicitly tell make where to look and what architecture to use
+            # Create out directory just in case
+            mkdir -p out
+            
+            # Explicitly tell make where to look
             make O=out ARCH=arm64 afaneh_a34x_defconfig
             make O=out ARCH=arm64 -j$(nproc)
+      - run:
+          name: "Package AnyKernel3"
+          command: |
+            git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
+            cp kernel-6.6/out/arch/arm64/boot/Image.gz AnyKernel3/ || cp kernel-6.6/out/arch/arm64/boot/Image AnyKernel3/
+            cd AnyKernel3
+            zip -r9 ../A34-TouchFix-$(date +%Y%m%d).zip *
+      - store_artifacts:
+          path: A34-TouchFix-*.zip
+          destination: builds
