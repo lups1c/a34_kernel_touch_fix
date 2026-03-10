@@ -1,4 +1,11 @@
-steps:
+version: 2.1
+
+# This 'jobs' key must be at the very edge of the left margin (no spaces)
+jobs:
+  build:
+    docker:
+      - image: cimg/base:stable
+    steps:
       - checkout
       - run:
           name: "Install System Dependencies"
@@ -14,7 +21,9 @@ steps:
       - run:
           name: "Compile Kernel"
           command: |
+            # Enter the source folder
             cd kernel-6.6
+            
             export PARENT_DIR=$(readlink -f ..)
             export ARCH=arm64
             export SUBARCH=arm64
@@ -23,10 +32,7 @@ steps:
             export PATH=$PATH:$PARENT_DIR/aarch64-linux-android-4.9/bin:$PARENT_DIR/clang-r383902/bin
             export LLVM=1
             
-            # Create out directory just in case
             mkdir -p out
-            
-            # Explicitly tell make where to look
             make O=out ARCH=arm64 afaneh_a34x_defconfig
             make O=out ARCH=arm64 -j$(nproc)
       - run:
